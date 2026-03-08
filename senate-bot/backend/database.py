@@ -112,9 +112,9 @@ def save_application(application_data: Dict[str, Any], application_id: str, stat
             preferred_bank,
             status
         ) VALUES (
-            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-            %s, %s, %s
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            ?, ?
         )
     """
 
@@ -144,11 +144,12 @@ def save_application(application_data: Dict[str, Any], application_id: str, stat
     )
 
     try:
-        with _get_connection(include_database=True) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(query, values)
-            conn.commit()
-    except Error as e:
+        conn = _get_connection()
+        cursor = conn.cursor()
+        cursor.execute(query, values)
+        conn.commit()
+        conn.close()
+    except Exception as e:
         raise RuntimeError(f"Error saving application: {e}") from e
 
 
@@ -156,14 +157,21 @@ def get_application_by_id(application_id: str) -> Optional[Dict[str, Any]]:
     """
     Fetch a single application by its application_id.
     """
-    query = "SELECT * FROM applications WHERE application_id = %s"
+    query = "SELECT * FROM applications WHERE application_id = ?"
 
     try:
-        with _get_connection(include_database=True) as conn:
-            with conn.cursor(dictionary=True) as cursor:
-                cursor.execute(query, (application_id,))
-                row = cursor.fetchone()
-                return row if row is not None else None
-    except Error as e:
+        conn = _get_connection()
+        cursor = conn.cursor()
+        cursor.execute(query, (application_id,))
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row is None:
+            return None
+            
+        # Convert row to dictionary
+        columns = [description[0] for description in cursor.description]
+        return dict(zip(columns, row))
+    except Exception as e:
         raise RuntimeError(f"Error fetching application by id: {e}") from e
 
