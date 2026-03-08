@@ -1,104 +1,85 @@
-import os
+import sqlite3
 from typing import Any, Dict, Optional
+from datetime import datetime
+import random
 
-from dotenv import load_dotenv
-import mysql.connector
-from mysql.connector import Error
-
-
-load_dotenv()
+DB_FILE = "applications.db"
 
 
-DB_NAME = os.getenv("MYSQL_DATABASE", "senate_bot")
-
-BASE_DB_CONFIG = {
-    "host": os.getenv("MYSQL_HOST", "localhost"),
-    "port": int(os.getenv("MYSQL_PORT", "3306")),
-    "user": os.getenv("MYSQL_USER", "root"),
-    "password": os.getenv("MYSQL_PASSWORD", ""),
-}
-
-FULL_DB_CONFIG = {
-    **BASE_DB_CONFIG,
-    "database": DB_NAME,
-}
-
-
-def _get_connection(include_database: bool = True):
-    """
-    Get a new MySQL connection.
-    If include_database is False, connect without specifying the database (used for CREATE DATABASE).
-    """
-    config = FULL_DB_CONFIG if include_database else BASE_DB_CONFIG
-    return mysql.connector.connect(**config)
+def _get_connection():
+    """Get a SQLite database connection"""
+    return sqlite3.connect(DB_FILE)
 
 
 def init_db() -> None:
-    """
-    Initialize the MySQL database and applications table if they do not exist.
-    """
-    # Create database if it doesn't exist
+    """Initialize the SQLite database and applications table if they do not exist"""
     try:
-        with _get_connection(include_database=False) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    f"CREATE DATABASE IF NOT EXISTS `{DB_NAME}` "
-                    "DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
-                )
-            conn.commit()
-    except Error as e:
-        # Let the caller surface this as a startup error if needed
-        raise RuntimeError(f"Error creating database {DB_NAME}: {e}") from e
-
-    # Create applications table if it doesn't exist
-    try:
-        with _get_connection(include_database=True) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS applications (
-                        application_id VARCHAR(32) PRIMARY KEY,
-                        full_name VARCHAR(255),
-                        aadhaar_number VARCHAR(20),
-                        pan_number VARCHAR(20),
-                        date_of_birth VARCHAR(20),
-                        gender VARCHAR(20),
-                        category VARCHAR(50),
-                        mobile_number VARCHAR(20),
-                        email VARCHAR(255),
-                        residential_address TEXT,
-                        business_name VARCHAR(255),
-                        business_type VARCHAR(100),
-                        business_description TEXT,
-                        business_address TEXT,
-                        business_status VARCHAR(50),
-                        years_in_operation VARCHAR(20),
-                        number_of_employees VARCHAR(20),
-                        loan_category VARCHAR(50),
-                        loan_amount VARCHAR(50),
-                        loan_purpose TEXT,
-                        preferred_bank VARCHAR(255),
-                        status VARCHAR(50) DEFAULT 'Pending',
-                        submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-                    """
-                )
-            conn.commit()
-    except Error as e:
+        conn = _get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS applications (
+                application_id TEXT PRIMARY KEY,
+                full_name TEXT,
+                aadhaar_number TEXT,
+                pan_number TEXT,
+                date_of_birth TEXT,
+                gender TEXT,
+                category TEXT,
+                mobile_number TEXT,
+                email TEXT,
+                residential_address TEXT,
+                business_name TEXT,
+                business_type TEXT,
+                business_description TEXT,
+                business_address TEXT,
+                business_status TEXT,
+                years_in_operation TEXT,
+                number_of_employees TEXT,
+                loan_category TEXT,
+                loan_amount TEXT,
+                loan_purpose TEXT,
+                preferred_bank TEXT,
+                status TEXT DEFAULT 'Pending',
+                submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        conn.commit()
+        conn.close()
+    except Exception as e:
         raise RuntimeError(f"Error creating applications table: {e}") from e
 
 
+def generate_application_id() -> str:
+    """Generate unique application ID in format MU-YYYYMMDD-XXXX"""
+    max_retries = 10
+    for _ in range(max_retries):
+        # Get current date in YYYYMMDD format
+        date_str = datetime.now().strftime("%Y%m%d")
+        # Generate random 4-digit number
+        random_num = random.randint(0, 9999)
+        # Format as MU-YYYYMMDD-XXXX
+        app_id = f"MU-{date_str}-{random_num:04d}"
+        
+        # Check if ID already exists
+        if not application_id_exists(app_id):
+            return app_id
+    
+    raise RuntimeError("Failed to generate unique application ID after maximum retries")
+
+
 def application_id_exists(application_id: str) -> bool:
-    """
-    Check whether an application_id already exists in the database.
-    """
-    query = "SELECT 1 FROM applications WHERE application_id = %s LIMIT 1"
+    """Check whether an application_id already exists in the database"""
+    query = "SELECT 1 FROM applications WHERE application_id = ? LIMIT 1"
     try:
-        with _get_connection(include_database=True) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(query, (application_id,))
-                return cursor.fetchone() is not None
-    except Error as e:
+        conn = _get_connection()
+        cursor = conn.cursor()
+        cursor.execute(query, (application_id,))
+        result = cursor.fetchone() is not None
+        conn.close()
+        return result
+    except Exception as e:
         raise RuntimeError(f"Error checking application_id existence: {e}") from e
 
 

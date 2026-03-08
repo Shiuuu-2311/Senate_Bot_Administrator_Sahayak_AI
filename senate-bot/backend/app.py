@@ -48,10 +48,6 @@ class ResetResponse(BaseModel):
     message: str
 
 
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
-
-
 # Validation Functions
 import re
 
@@ -304,7 +300,8 @@ def get_fields_needed():
         if value is None:
             needed.append(key)
     # Remove years_in_operation if business is new
-    if application_data.get("business_status", "").lower() == "new":
+    business_status = application_data.get("business_status")
+    if business_status and business_status.lower() == "new":
         if "years_in_operation" in needed:
             needed.remove("years_in_operation")
     return needed
@@ -457,3 +454,7 @@ async def chat(request: ChatRequest):
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing message: {str(e)}")
+
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
