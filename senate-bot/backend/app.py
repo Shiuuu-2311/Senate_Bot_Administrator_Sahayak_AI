@@ -206,6 +206,7 @@ STRICT VALIDATION RULES
 AADHAAR
 - Must be exactly 12 digits
 - No spaces, letters, or symbols
+- Accept the number if it has 12 digits, even if you're unsure
 If invalid say:
 "That doesn't look like a valid Aadhaar number. It must contain exactly 12 digits. Please re-enter."
 
@@ -220,10 +221,15 @@ MOBILE
 - Must start with 6, 7, 8, or 9
 If invalid ask user to re-enter.
 
+IMPORTANT:
+- If a number looks valid (correct length and format), ACCEPT it
+- Don't be overly strict on first entry
+- Only reject if clearly wrong (wrong length, contains letters, etc.)
+
 NEVER:
 - Guess missing numbers
 - Correct the user's value
-- Accept invalid values
+- Reject valid values
 
 
 
@@ -410,12 +416,12 @@ async def chat(request: ChatRequest):
             "content": request.message
         })
         
-        # Call Groq API with static + dynamic prompt and last 3 messages only
+        # Call Groq API with static + dynamic prompt and full conversation history
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": static_system_prompt + build_dynamic_prompt()}
-            ] + conversation_history[-3:],
+            ] + conversation_history,  # Use full history instead of last 3
             max_tokens=1000
         )
         
