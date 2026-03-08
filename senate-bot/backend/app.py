@@ -5,12 +5,19 @@ from groq import Groq
 from dotenv import load_dotenv
 import os
 import uvicorn
+import random
+from datetime import datetime
+
+from database import init_db, save_application, application_id_exists
 
 # Load environment variables
 load_dotenv()
 
 # Initialize FastAPI app
 app = FastAPI()
+
+# Initialize database (MySQL)
+init_db()
 
 # Configure CORS middleware
 app.add_middleware(
@@ -35,6 +42,7 @@ class ChatResponse(BaseModel):
 
 class StatusResponse(BaseModel):
     status: str
+    application_data: dict
 
 class ResetResponse(BaseModel):
     message: str
@@ -46,7 +54,6 @@ if __name__ == "__main__":
 
 # Validation Functions
 import re
-from datetime import datetime
 
 def validate_aadhaar(value):
     """Validate Aadhaar number (12 digits)"""
@@ -337,12 +344,29 @@ def update_application_data(extracted_data):
             application_data[key] = extracted_data[key]
 
 
+def generate_unique_application_id() -> str:
+    """
+    Generate a unique application ID in the format:
+    MU-YYYYMMDD-XXXX
+    where XXXX is a random 4-digit number.
+    Ensures uniqueness by checking against the database.
+    """
+    prefix = "MU"
+    date_str = datetime.now().strftime("%Y%m%d")
+
+    while True:
+        random_number = random.randint(1000, 9999)
+        application_id = f"{prefix}-{date_str}-{random_number}"
+        if not application_id_exists(application_id):
+            return application_id
+
+
 # API Endpoints
 
 @app.get("/status", response_model=StatusResponse)
 async def get_status():
-    """Health check endpoint"""
-    return StatusResponse(status="ok")
+    """Health check endpoint with current application data"""
+    return StatusResponse(status="ok", application_data=application_data)
 
 @app.post("/reset", response_model=ResetResponse)
 async def reset_conversation():
@@ -411,12 +435,18 @@ async def chat(request: ChatRequest):
             extracted = extract_form_data(assistant_message)
             update_application_data(extracted)
             clean_response = assistant_message.split("FORM_COMPLETE")[0].strip()
-            
-            # TODO: Save to database and get application_id (will be implemented in Task 7)
+
+            # Generate unique application ID and save to MySQL
+            application_id = generate_unique_application_id()
+            try:
+                save_application(application_data, application_id)
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Error saving application: {str(e)}")
+
             return {
                 "response": clean_response,
                 "form_complete": True,
-                "application_id": None  # Will be populated after database integration
+                "application_id": application_id
             }
         
         return {
