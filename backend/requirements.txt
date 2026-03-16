@@ -1,7 +1,0 @@
-fastapi
-uvicorn
-groq
-python-dotenv
-python-multipart
-mysql-connector-python
-mysql-connector-python
