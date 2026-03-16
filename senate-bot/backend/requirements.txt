@@ -4,4 +4,10 @@ groq
 python-dotenv
 python-multipart
 mysql-connector-python
-mysql-connector-python
+chromadb
+sentence-transformers
+rank-bm25
+langchain-community
+pypdf
+numpy
+requests
